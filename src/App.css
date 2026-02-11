@@ -25,6 +25,14 @@
   --primary-btn-border: #755a42;
   --primary-btn-hover: #7d6148;
   --primary-btn-text: #fffaf4;
+  --sync-loading-bg: #f4eadc;
+  --sync-loading-text: #6b5844;
+  --sync-saved-bg: #ecf6ee;
+  --sync-saved-text: #3f6a4f;
+  --sync-local-bg: #efe9dd;
+  --sync-local-text: #6a5d4e;
+  --sync-error-bg: #f9e8e5;
+  --sync-error-text: #8b4b44;
   --badge-home-bg: #eef7f1;
   --badge-home-text: #446d55;
   --badge-home-border: #d1e7d8;
@@ -66,6 +74,14 @@
   --primary-btn-border: #c59f74;
   --primary-btn-hover: #cca77c;
   --primary-btn-text: #231b14;
+  --sync-loading-bg: #43372d;
+  --sync-loading-text: #e8d5c0;
+  --sync-saved-bg: #2d3c30;
+  --sync-saved-text: #badfc2;
+  --sync-local-bg: #3f352c;
+  --sync-local-text: #d8c8b5;
+  --sync-error-bg: #4b2e2a;
+  --sync-error-text: #f1c0b8;
   --badge-home-bg: #2f4033;
   --badge-home-text: #c8e6cd;
   --badge-home-border: #47624d;
@@ -108,6 +124,44 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.titleActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.syncStatus {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.sync-loading {
+  background: var(--sync-loading-bg);
+  color: var(--sync-loading-text);
+}
+
+.sync-saved {
+  background: var(--sync-saved-bg);
+  color: var(--sync-saved-text);
+}
+
+.sync-local_only {
+  background: var(--sync-local-bg);
+  color: var(--sync-local-text);
+}
+
+.sync-error {
+  background: var(--sync-error-bg);
+  color: var(--sync-error-text);
 }
 
 .themeToggle {
@@ -462,6 +516,11 @@
 
   .todoCard h1 {
     font-size: 1.9rem;
+  }
+
+  .titleActions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .inputRow {

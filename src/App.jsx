@@ -1,8 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
+import { hasSupabaseConfig, supabase } from './supabaseClient'
 
 const STORAGE_KEY = 'todos_v1'
 const THEME_STORAGE_KEY = 'theme_v1'
+const SYNC_STATUS = {
+  LOADING: 'loading',
+  SAVED: 'saved',
+  LOCAL_ONLY: 'local_only',
+  ERROR: 'error',
+}
 const CATEGORIES = ['Home', 'Work', 'Personal']
 const DEFAULT_CATEGORY = CATEGORIES[0]
 const CATEGORY_TABS = ['all', 'Work', 'Home', 'Personal']
@@ -59,34 +66,47 @@ function reorderTasksFromFilteredView(
   })
 }
 
-function readSavedTasks() {
+function normalizeTodos(rawTodos) {
+  if (!Array.isArray(rawTodos)) return []
+
+  return rawTodos
+    .filter(
+      (task) =>
+        typeof task === 'object' &&
+        task !== null &&
+        typeof task.id === 'number' &&
+        typeof task.text === 'string' &&
+        typeof task.completed === 'boolean' &&
+        (task.category === undefined || typeof task.category === 'string'),
+    )
+    .map((task) => ({
+      id: task.id,
+      text: task.text,
+      completed: task.completed,
+      category: isValidCategory(task.category)
+        ? task.category
+        : DEFAULT_CATEGORY,
+    }))
+}
+
+function readSavedTasksResult() {
   try {
     const savedValue = localStorage.getItem(STORAGE_KEY)
-    if (!savedValue) return []
+    if (!savedValue) return { todos: [], ok: true }
 
     const parsedValue = JSON.parse(savedValue)
-    if (!Array.isArray(parsedValue)) return []
-
-    return parsedValue
-      .filter(
-        (task) =>
-          typeof task === 'object' &&
-          task !== null &&
-          typeof task.id === 'number' &&
-          typeof task.text === 'string' &&
-          typeof task.completed === 'boolean' &&
-          (task.category === undefined || typeof task.category === 'string'),
-      )
-      .map((task) => ({
-        id: task.id,
-        text: task.text,
-        completed: task.completed,
-        category: isValidCategory(task.category)
-          ? task.category
-          : DEFAULT_CATEGORY,
-      }))
+    return { todos: normalizeTodos(parsedValue), ok: true }
   } catch {
-    return []
+    return { todos: [], ok: false }
+  }
+}
+
+function saveTasksToLocalFallback(todos) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -110,7 +130,9 @@ function App() {
   const [theme, setTheme] = useState(readInitialTheme)
   const [taskText, setTaskText] = useState('')
   const [taskCategory, setTaskCategory] = useState(DEFAULT_CATEGORY)
-  const [tasks, setTasks] = useState(readSavedTasks)
+  const [tasks, setTasks] = useState([])
+  const [syncStatus, setSyncStatus] = useState(SYNC_STATUS.LOADING)
+  const [hasLoadedTodos, setHasLoadedTodos] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [editingTaskId, setEditingTaskId] = useState(null)
@@ -124,14 +146,6 @@ function App() {
   const previousPositionsRef = useRef(new Map())
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
-    } catch {
-      // Ignore storage errors so the app keeps working.
-    }
-  }, [tasks])
-
-  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     document.documentElement.style.colorScheme = theme
 
@@ -141,6 +155,134 @@ function App() {
       // Ignore localStorage write errors and keep the app usable.
     }
   }, [theme])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadTodosFromSupabase() {
+      setSyncStatus(SYNC_STATUS.LOADING)
+
+      if (!hasSupabaseConfig || !supabase) {
+        if (isCancelled) return
+        const localResult = readSavedTasksResult()
+        setTasks(localResult.todos)
+        setSyncStatus(localResult.ok ? SYNC_STATUS.LOCAL_ONLY : SYNC_STATUS.ERROR)
+        setHasLoadedTodos(true)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('todos')
+          .select('id, text, completed, category, sort_order')
+          .order('sort_order', { ascending: true, nullsFirst: false })
+          .order('id', { ascending: true })
+
+        if (error) throw error
+
+        const sortedRows = [...(data ?? [])].sort((a, b) => {
+          const leftOrder = typeof a.sort_order === 'number' ? a.sort_order : Number.MAX_SAFE_INTEGER
+          const rightOrder =
+            typeof b.sort_order === 'number' ? b.sort_order : Number.MAX_SAFE_INTEGER
+
+          if (leftOrder !== rightOrder) return leftOrder - rightOrder
+          return a.id - b.id
+        })
+
+        const remoteTodos = normalizeTodos(sortedRows)
+
+        if (isCancelled) return
+        setTasks(remoteTodos)
+        saveTasksToLocalFallback(remoteTodos)
+        setSyncStatus(SYNC_STATUS.SAVED)
+      } catch (error) {
+        console.log('Supabase load error', error)
+        if (isCancelled) return
+
+        const localResult = readSavedTasksResult()
+        setTasks(localResult.todos)
+        setSyncStatus(localResult.ok ? SYNC_STATUS.LOCAL_ONLY : SYNC_STATUS.ERROR)
+      } finally {
+        if (!isCancelled) {
+          setHasLoadedTodos(true)
+        }
+      }
+    }
+
+    loadTodosFromSupabase()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedTodos) return
+
+    const localSaveWorked = saveTasksToLocalFallback(tasks)
+
+    if (!hasSupabaseConfig || !supabase) {
+      setSyncStatus(localSaveWorked ? SYNC_STATUS.LOCAL_ONLY : SYNC_STATUS.ERROR)
+      return
+    }
+
+    let isCancelled = false
+
+    async function saveTodosToSupabase() {
+      setSyncStatus(SYNC_STATUS.LOADING)
+
+      try {
+        const rows = tasks.map((task, index) => ({
+          id: task.id,
+          text: task.text,
+          completed: task.completed,
+          category: task.category,
+          sort_order: index,
+          updated_at: new Date().toISOString(),
+        }))
+
+        if (rows.length > 0) {
+          const { error: upsertError } = await supabase
+            .from('todos')
+            .upsert(rows, { onConflict: 'id' })
+
+          if (upsertError) throw upsertError
+        }
+
+        const taskIds = tasks.map((task) => task.id)
+
+        if (taskIds.length === 0) {
+          const { error: deleteAllError } = await supabase
+            .from('todos')
+            .delete()
+            .gte('id', 0)
+
+          if (deleteAllError) throw deleteAllError
+        } else {
+          const idList = `(${taskIds.join(',')})`
+          const { error: deleteMissingError } = await supabase
+            .from('todos')
+            .delete()
+            .not('id', 'in', idList)
+
+          if (deleteMissingError) throw deleteMissingError
+        }
+
+        if (!isCancelled) setSyncStatus(SYNC_STATUS.SAVED)
+      } catch (error) {
+        console.log('Supabase save error', error)
+        if (!isCancelled) {
+          setSyncStatus(localSaveWorked ? SYNC_STATUS.LOCAL_ONLY : SYNC_STATUS.ERROR)
+        }
+      }
+    }
+
+    saveTodosToSupabase()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [tasks, hasLoadedTodos])
 
   function addTask(event) {
     event.preventDefault()
@@ -369,16 +511,27 @@ function App() {
       <section className="todoCard" ref={cardRef}>
         <div className="titleRow">
           <h1>To-Do</h1>
-          <button
-            type="button"
-            className="themeToggle"
-            onClick={() => setTheme((currentTheme) =>
-              currentTheme === 'dark' ? 'light' : 'dark',
-            )}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            {theme === 'dark' ? 'Light' : 'Dark'}
-          </button>
+          <div className="titleActions">
+            <span className={`syncStatus sync-${syncStatus}`}>
+              {syncStatus === SYNC_STATUS.LOADING
+                ? 'Loading…'
+                : syncStatus === SYNC_STATUS.SAVED
+                  ? 'Saved'
+                  : syncStatus === SYNC_STATUS.LOCAL_ONLY
+                    ? 'Local only'
+                    : 'Error'}
+            </span>
+            <button
+              type="button"
+              className="themeToggle"
+              onClick={() => setTheme((currentTheme) =>
+                currentTheme === 'dark' ? 'light' : 'dark',
+              )}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? 'Light' : 'Dark'}
+            </button>
+          </div>
         </div>
         <p className="counter">
           {remainingCount} task{remainingCount === 1 ? '' : 's'} remaining
