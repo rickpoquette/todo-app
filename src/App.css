@@ -1,0 +1,189 @@
+.app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f7f7f8 0%, #f2f2f4 100%);
+}
+
+.todoCard {
+  width: min(540px, 100%);
+  background: #ffffff;
+  border: 1px solid #ececef;
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+}
+
+.todoCard h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+}
+
+.counter {
+  margin: 8px 0 18px;
+  color: #66666d;
+  font-size: 0.95rem;
+}
+
+.inputRow {
+  display: flex;
+  gap: 10px;
+}
+
+.inputRow input {
+  flex: 1;
+  border: 1px solid #d7d7dc;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 1rem;
+  background: #ffffff;
+  color: #1d1d1f;
+  outline: none;
+}
+
+.inputRow input:focus {
+  border-color: #a9a9b0;
+}
+
+.inputRow button {
+  border: none;
+  border-radius: 12px;
+  padding: 0 18px;
+  background: #1d1d1f;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.controlsRow {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filterGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.filterButton {
+  border: 1px solid #d8d8de;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #505058;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.filterButton.active {
+  border-color: #1d1d1f;
+  color: #1d1d1f;
+}
+
+.clearButton {
+  border: 1px solid #d8d8de;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #505058;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.clearButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.taskList {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.taskRow {
+  padding: 10px 12px;
+  border: 1px solid #ececef;
+  border-radius: 14px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.taskRow.dragging {
+  opacity: 0.35;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+}
+
+.taskRow.dragOver {
+  border-color: #c8c8ce;
+  box-shadow: 0 0 0 2px #f1f1f4;
+}
+
+.taskText {
+  flex: 1;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 1rem;
+  color: #1d1d1f;
+  cursor: pointer;
+}
+
+.taskText.completed {
+  text-decoration: line-through;
+  color: #8f8f96;
+}
+
+.editInput {
+  flex: 1;
+  border: 1px solid #d7d7dc;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  color: #1d1d1f;
+  outline: none;
+}
+
+.editInput:focus {
+  border-color: #a9a9b0;
+}
+
+.editButton {
+  border: 1px solid #d8d8de;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #505058;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.deleteButton {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d8d8de;
+  border-radius: 999px;
+  background: #fff;
+  color: #707078;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.emptyState {
+  margin: 18px 0 0;
+  color: #7b7b82;
+}
