@@ -2,22 +2,31 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
 
 const STORAGE_KEY = 'todos_v1'
+const CATEGORIES = ['Home', 'Work', 'Personal']
+const DEFAULT_CATEGORY = CATEGORIES[0]
+const CATEGORY_TABS = ['all', 'Work', 'Home', 'Personal']
 
-function taskMatchesFilter(task, filter) {
-  if (filter === 'active') return !task.completed
-  if (filter === 'completed') return task.completed
+function isValidCategory(value) {
+  return CATEGORIES.includes(value)
+}
+
+function taskMatchesFilters(task, statusFilter, categoryFilter) {
+  if (statusFilter === 'active' && task.completed) return false
+  if (statusFilter === 'completed' && !task.completed) return false
+  if (categoryFilter !== 'all' && task.category !== categoryFilter) return false
   return true
 }
 
 function reorderTasksFromFilteredView(
   tasks,
-  filter,
+  statusFilter,
+  categoryFilter,
   draggedTaskId,
   targetTaskId,
   placeAfter,
 ) {
   const visibleIds = tasks
-    .filter((task) => taskMatchesFilter(task, filter))
+    .filter((task) => taskMatchesFilters(task, statusFilter, categoryFilter))
     .map((task) => task.id)
 
   const fromIndex = visibleIds.indexOf(draggedTaskId)
@@ -42,7 +51,7 @@ function reorderTasksFromFilteredView(
   let visiblePointer = 0
 
   return tasks.map((task) => {
-    if (!taskMatchesFilter(task, filter)) return task
+    if (!taskMatchesFilters(task, statusFilter, categoryFilter)) return task
     const nextVisibleId = reorderedVisibleIds[visiblePointer]
     visiblePointer += 1
     return taskById.get(nextVisibleId) ?? task
@@ -64,12 +73,16 @@ function readSavedTasks() {
           task !== null &&
           typeof task.id === 'number' &&
           typeof task.text === 'string' &&
-          typeof task.completed === 'boolean',
+          typeof task.completed === 'boolean' &&
+          (task.category === undefined || typeof task.category === 'string'),
       )
       .map((task) => ({
         id: task.id,
         text: task.text,
         completed: task.completed,
+        category: isValidCategory(task.category)
+          ? task.category
+          : DEFAULT_CATEGORY,
       }))
   } catch {
     return []
@@ -78,13 +91,17 @@ function readSavedTasks() {
 
 function App() {
   const [taskText, setTaskText] = useState('')
+  const [taskCategory, setTaskCategory] = useState(DEFAULT_CATEGORY)
   const [tasks, setTasks] = useState(readSavedTasks)
-  const [filter, setFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [editingTaskId, setEditingTaskId] = useState(null)
   const [editingText, setEditingText] = useState('')
+  const [editingCategory, setEditingCategory] = useState(DEFAULT_CATEGORY)
   const [draggedTaskId, setDraggedTaskId] = useState(null)
   const [dragOverTaskId, setDragOverTaskId] = useState(null)
   const dragPreviewRef = useRef(null)
+  const cardRef = useRef(null)
   const rowRefs = useRef(new Map())
   const previousPositionsRef = useRef(new Map())
 
@@ -104,7 +121,12 @@ function App() {
 
     setTasks((currentTasks) => [
       ...currentTasks,
-      { id: Date.now(), text: trimmedTask, completed: false },
+      {
+        id: Date.now(),
+        text: trimmedTask,
+        completed: false,
+        category: taskCategory,
+      },
     ])
     setTaskText('')
   }
@@ -123,8 +145,7 @@ function App() {
     )
 
     if (editingTaskId === taskId) {
-      setEditingTaskId(null)
-      setEditingText('')
+      cancelEditingTask()
     }
   }
 
@@ -142,11 +163,13 @@ function App() {
   function startEditingTask(task) {
     setEditingTaskId(task.id)
     setEditingText(task.text)
+    setEditingCategory(task.category)
   }
 
   function cancelEditingTask() {
     setEditingTaskId(null)
     setEditingText('')
+    setEditingCategory(DEFAULT_CATEGORY)
   }
 
   function saveEditingTask(taskId) {
@@ -159,7 +182,9 @@ function App() {
 
     setTasks((currentTasks) =>
       currentTasks.map((task) =>
-        task.id === taskId ? { ...task, text: trimmedText } : task,
+        task.id === taskId
+          ? { ...task, text: trimmedText, category: editingCategory }
+          : task,
       ),
     )
     cancelEditingTask()
@@ -212,7 +237,8 @@ function App() {
     setTasks((currentTasks) =>
       reorderTasksFromFilteredView(
         currentTasks,
-        filter,
+        statusFilter,
+        categoryFilter,
         draggedTaskId,
         taskId,
         placeAfter,
@@ -238,7 +264,9 @@ function App() {
   const remainingCount = tasks.filter((task) => !task.completed).length
   const completedCount = tasks.length - remainingCount
 
-  const visibleTasks = tasks.filter((task) => taskMatchesFilter(task, filter))
+  const visibleTasks = tasks.filter((task) =>
+    taskMatchesFilters(task, statusFilter, categoryFilter),
+  )
 
   useLayoutEffect(() => {
     const nextPositions = new Map()
@@ -269,9 +297,44 @@ function App() {
     previousPositionsRef.current = nextPositions
   }, [visibleTasks, draggedTaskId])
 
+  useLayoutEffect(() => {
+    const cardElement = cardRef.current
+    if (!cardElement) return
+
+    const startHeight = cardElement.getBoundingClientRect().height
+    cardElement.style.height = 'auto'
+    const endHeight = cardElement.getBoundingClientRect().height
+
+    if (Math.abs(endHeight - startHeight) < 1) {
+      cardElement.style.height = ''
+      return
+    }
+
+    cardElement.style.height = `${startHeight}px`
+    cardElement.style.overflow = 'hidden'
+
+    requestAnimationFrame(() => {
+      cardElement.style.transition = 'height 180ms ease'
+      cardElement.style.height = `${endHeight}px`
+    })
+
+    function cleanupHeightAnimation() {
+      cardElement.style.transition = ''
+      cardElement.style.height = ''
+      cardElement.style.overflow = ''
+      cardElement.removeEventListener('transitionend', cleanupHeightAnimation)
+    }
+
+    cardElement.addEventListener('transitionend', cleanupHeightAnimation)
+
+    return () => {
+      cardElement.removeEventListener('transitionend', cleanupHeightAnimation)
+    }
+  }, [visibleTasks, statusFilter, categoryFilter])
+
   return (
     <main className="app">
-      <section className="todoCard">
+      <section className="todoCard" ref={cardRef}>
         <h1>To-Do</h1>
         <p className="counter">
           {remainingCount} task{remainingCount === 1 ? '' : 's'} remaining
@@ -284,6 +347,17 @@ function App() {
             value={taskText}
             onChange={(event) => setTaskText(event.target.value)}
           />
+          <select
+            className="categorySelect"
+            value={taskCategory}
+            onChange={(event) => setTaskCategory(event.target.value)}
+          >
+            {CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
           <button type="submit">Add</button>
         </form>
 
@@ -291,24 +365,26 @@ function App() {
           <div className="filterGroup">
             <button
               type="button"
-              className={`filterButton ${filter === 'all' ? 'active' : ''}`}
-              onClick={() => setFilter('all')}
+              className={`filterButton ${statusFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setStatusFilter('all')}
             >
               All
             </button>
             <button
               type="button"
-              className={`filterButton ${filter === 'active' ? 'active' : ''}`}
-              onClick={() => setFilter('active')}
+              className={`filterButton ${
+                statusFilter === 'active' ? 'active' : ''
+              }`}
+              onClick={() => setStatusFilter('active')}
             >
               Active
             </button>
             <button
               type="button"
               className={`filterButton ${
-                filter === 'completed' ? 'active' : ''
+                statusFilter === 'completed' ? 'active' : ''
               }`}
-              onClick={() => setFilter('completed')}
+              onClick={() => setStatusFilter('completed')}
             >
               Completed
             </button>
@@ -322,6 +398,25 @@ function App() {
           >
             Clear completed
           </button>
+        </div>
+        <div className="categoryTabs" role="tablist" aria-label="Category tabs">
+          {CATEGORY_TABS.map((tab) => {
+            const label = tab === 'all' ? 'All' : tab
+            const isActive = categoryFilter === tab
+            return (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                className={`categoryTab ${isActive ? 'active' : ''}`}
+                onClick={() => setCategoryFilter(tab)}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         {tasks.length === 0 ? (
@@ -365,6 +460,27 @@ function App() {
                     onClick={() => toggleTask(task.id)}
                   >
                     {task.text}
+                  </button>
+                )}
+                {editingTaskId === task.id ? (
+                  <select
+                    className="categoryEditSelect"
+                    value={editingCategory}
+                    onChange={(event) => setEditingCategory(event.target.value)}
+                  >
+                    {CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    type="button"
+                    className="categoryBadge"
+                    onClick={() => startEditingTask(task)}
+                  >
+                    {task.category}
                   </button>
                 )}
                 <button

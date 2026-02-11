@@ -1,8 +1,9 @@
 .app {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 24px 24px;
   background: linear-gradient(180deg, #f7f7f8 0%, #f2f2f4 100%);
 }
 
@@ -46,6 +47,15 @@
 
 .inputRow input:focus {
   border-color: #a9a9b0;
+}
+
+.categorySelect {
+  border: 1px solid #d7d7dc;
+  border-radius: 12px;
+  padding: 0 10px;
+  font-size: 0.95rem;
+  background: #ffffff;
+  color: #1d1d1f;
 }
 
 .inputRow button {
@@ -100,6 +110,36 @@
 .clearButton:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+.categoryTabs {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  border: 1px solid #d8d8de;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.categoryTab {
+  border: none;
+  border-right: 1px solid #e3e3e8;
+  padding: 9px 8px;
+  font-size: 0.85rem;
+  background: transparent;
+  color: #505058;
+  cursor: pointer;
+}
+
+.categoryTab:last-child {
+  border-right: none;
+}
+
+.categoryTab.active {
+  background: #1d1d1f;
+  color: #ffffff;
 }
 
 .taskList {
@@ -160,6 +200,26 @@
 
 .editInput:focus {
   border-color: #a9a9b0;
+}
+
+.categoryBadge {
+  border: 1px solid #e2e2e7;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.75rem;
+  color: #606068;
+  background: #f8f8fa;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.categoryEditSelect {
+  border: 1px solid #e2e2e7;
+  border-radius: 10px;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  color: #1d1d1f;
+  background: #fff;
 }
 
 .editButton {
