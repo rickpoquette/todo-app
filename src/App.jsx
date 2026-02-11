@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './App.css'
 
 const STORAGE_KEY = 'todos_v1'
+const THEME_STORAGE_KEY = 'theme_v1'
 const CATEGORIES = ['Home', 'Work', 'Personal']
 const DEFAULT_CATEGORY = CATEGORIES[0]
 const CATEGORY_TABS = ['all', 'Work', 'Home', 'Personal']
@@ -89,7 +90,24 @@ function readSavedTasks() {
   }
 }
 
+function readInitialTheme() {
+  try {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY)
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme
+  } catch {
+    // Ignore localStorage read errors and use system preference.
+  }
+
+  const prefersDark =
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+
+  return prefersDark ? 'dark' : 'light'
+}
+
 function App() {
+  const [theme, setTheme] = useState(readInitialTheme)
   const [taskText, setTaskText] = useState('')
   const [taskCategory, setTaskCategory] = useState(DEFAULT_CATEGORY)
   const [tasks, setTasks] = useState(readSavedTasks)
@@ -112,6 +130,17 @@ function App() {
       // Ignore storage errors so the app keeps working.
     }
   }, [tasks])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.style.colorScheme = theme
+
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme)
+    } catch {
+      // Ignore localStorage write errors and keep the app usable.
+    }
+  }, [theme])
 
   function addTask(event) {
     event.preventDefault()
@@ -219,7 +248,10 @@ function App() {
     previewElement.style.transform = 'rotate(-1deg)'
     previewElement.style.boxShadow = '0 14px 36px rgba(0, 0, 0, 0.18)'
     previewElement.style.borderRadius = '14px'
-    previewElement.style.background = '#ffffff'
+    const currentCardBackground = getComputedStyle(
+      document.documentElement,
+    ).getPropertyValue('--card-bg')
+    previewElement.style.background = currentCardBackground || '#ffffff'
     document.body.appendChild(previewElement)
     dragPreviewRef.current = previewElement
     event.dataTransfer.setDragImage(previewElement, offsetX, offsetY)
@@ -335,7 +367,19 @@ function App() {
   return (
     <main className="app">
       <section className="todoCard" ref={cardRef}>
-        <h1>To-Do</h1>
+        <div className="titleRow">
+          <h1>To-Do</h1>
+          <button
+            type="button"
+            className="themeToggle"
+            onClick={() => setTheme((currentTheme) =>
+              currentTheme === 'dark' ? 'light' : 'dark',
+            )}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+        </div>
         <p className="counter">
           {remainingCount} task{remainingCount === 1 ? '' : 's'} remaining
         </p>
@@ -477,7 +521,7 @@ function App() {
                 ) : (
                   <button
                     type="button"
-                    className="categoryBadge"
+                    className={`categoryBadge category-${task.category.toLowerCase()}`}
                     onClick={() => startEditingTask(task)}
                   >
                     {task.category}
